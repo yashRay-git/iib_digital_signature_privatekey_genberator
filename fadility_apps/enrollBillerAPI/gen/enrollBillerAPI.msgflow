@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:ComIbmLabel.msgnode="ComIbmLabel.msgnode" xmlns:ComIbmRouteToLabel.msgnode="ComIbmRouteToLabel.msgnode" xmlns:ComIbmWSInput.msgnode="ComIbmWSInput.msgnode" xmlns:ComIbmWSReply.msgnode="ComIbmWSReply.msgnode" xmlns:Fidelity_Bank_GhIPSS_Common_SF_Fidelity_Bank_GhIPSS_Common.subflow="Fidelity_Bank_GhIPSS_Common/SF_Fidelity_Bank_GhIPSS_Common.subflow" xmlns:Fidelity_Bank_GhIPSS_Common_SF_Fidelity_Bank_GhIPSS_ExceptionHandler.subflow="Fidelity_Bank_GhIPSS_Common/SF_Fidelity_Bank_GhIPSS_ExceptionHandler.subflow"
+    xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:eflow="http://www.ibm.com/wbi/2005/eflow" xmlns:postBulk.subflow="postBulk.subflow" xmlns:postIndividual.subflow="postIndividual.subflow" xmlns:utility="http://www.ibm.com/wbi/2005/eflow_utility" nsURI="gen/enrollBillerAPI.msgflow" nsPrefix="gen_enrollBillerAPI.msgflow">
+  <eClassifiers xmi:type="eflow:FCMComposite" name="FCMComposite_1" nodeLayoutStyle="SQUARE">
+    <eSuperTypes href="http://www.ibm.com/wbi/2005/eflow#//FCMBlock"/>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.cbsURL" name="cbsURL" defaultValueLiteral="http://localhost:7800/CBS">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <eStructuralFeatures xmi:type="ecore:EAttribute" xmi:id="Property.ghIPSSURL" name="ghIPSSURL" defaultValueLiteral="http://localhost:7800/Ghipss">
+      <eType xmi:type="ecore:EDataType" href="http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    </eStructuralFeatures>
+    <translation xmi:type="utility:TranslatableString" key="enrollBillerAPI" bundleName="gen/enrollBillerAPI" pluginId="enrollBillerAPI"/>
+    <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/enrollBillerAPI/icons/full/obj16/enrollBillerAPI.gif"/>
+    <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/enrollBillerAPI/icons/full/obj30/enrollBillerAPI.gif"/>
+    <composition>
+      <nodes xmi:type="ComIbmWSInput.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="144,138" URLSpecifier="/enrollbillerapi/v1*" parseQueryString="true" messageDomainProperty="JSON" faultFormat="JSON">
+        <translation xmi:type="utility:ConstantString" string="enrollBillerReqIn"/>
+      </nodes>
+      <nodes xmi:type="ComIbmRouteToLabel.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="354,100">
+        <translation xmi:type="utility:ConstantString" string="Route To Label"/>
+      </nodes>
+      <nodes xmi:type="ComIbmWSReply.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_3" location="529,288">
+        <translation xmi:type="utility:ConstantString" string="enrollBillerResOut"/>
+      </nodes>
+      <nodes xmi:type="ComIbmLabel.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_4" location="137,223" labelName="postBulk">
+        <translation xmi:type="utility:ConstantString" string="postBulk (Label)"/>
+      </nodes>
+      <nodes xmi:type="postBulk.subflow:FCMComposite_1" xmi:id="FCMComposite_1_5" location="325,225">
+        <translation xmi:type="utility:ConstantString" string="postBulk (Implementation)"/>
+      </nodes>
+      <nodes xmi:type="ComIbmLabel.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_6" location="125,300" labelName="postIndividual">
+        <translation xmi:type="utility:ConstantString" string="postIndividual (Label)"/>
+      </nodes>
+      <nodes xmi:type="postIndividual.subflow:FCMComposite_1" xmi:id="FCMComposite_1_7" location="325,300">
+        <translation xmi:type="utility:ConstantString" string="postIndividual (Implementation)"/>
+      </nodes>
+      <nodes xmi:type="ComIbmLabel.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_8" location="526,116" labelName="Label_Logger">
+        <translation xmi:type="utility:ConstantString" string="Label_Logger"/>
+      </nodes>
+      <nodes xmi:type="Fidelity_Bank_GhIPSS_Common_SF_Fidelity_Bank_GhIPSS_Common.subflow:FCMComposite_1" xmi:id="FCMComposite_1_9" location="610,116">
+        <translation xmi:type="utility:ConstantString" string="SF_Logging"/>
+      </nodes>
+      <nodes xmi:type="Fidelity_Bank_GhIPSS_Common_SF_Fidelity_Bank_GhIPSS_ExceptionHandler.subflow:FCMComposite_1" xmi:id="FCMComposite_1_10" location="539,200">
+        <translation xmi:type="utility:ConstantString" string="SF_Fidelity_Bank_GhIPSS_ExceptionHandler"/>
+      </nodes>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_1" targetNode="FCMComposite_1_2" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_2" targetNode="FCMComposite_1_5" sourceNode="FCMComposite_1_4" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input_1"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_3" targetNode="FCMComposite_1_3" sourceNode="FCMComposite_1_5" sourceTerminalName="OutTerminal.Output_1" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_4" targetNode="FCMComposite_1_7" sourceNode="FCMComposite_1_6" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input_1"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_5" targetNode="FCMComposite_1_3" sourceNode="FCMComposite_1_7" sourceTerminalName="OutTerminal.Output_1" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_6" targetNode="FCMComposite_1_9" sourceNode="FCMComposite_1_8" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_7" targetNode="FCMComposite_1_10" sourceNode="FCMComposite_1_7" sourceTerminalName="OutTerminal.Output" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_8" targetNode="FCMComposite_1_10" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.catch" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_9" targetNode="FCMComposite_1_10" sourceNode="FCMComposite_1_5" sourceTerminalName="Output1" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_10" targetNode="FCMComposite_1_10" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.failure" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_11" targetNode="FCMComposite_1_10" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.timeout" targetTerminalName="InTerminal.Input"/>
+    </composition>
+    <propertyOrganizer>
+      <propertyDescriptor groupName="Group.Basic" configurable="true" userDefined="true" describedAttribute="Property.cbsURL">
+        <propertyName xmi:type="utility:TranslatableString" key="Property.cbsURL" bundleName="gen/enrollBillerAPI" pluginId="enrollBillerAPI"/>
+        <propertyDescriptor groupName="Group.Basic" configurable="true" userDefined="true" describedAttribute="Property.ghIPSSURL">
+          <propertyName xmi:type="utility:TranslatableString" key="Property.ghIPSSURL" bundleName="gen/enrollBillerAPI" pluginId="enrollBillerAPI"/>
+        </propertyDescriptor>
+      </propertyDescriptor>
+    </propertyOrganizer>
+    <stickyBoard/>
+  </eClassifiers>
+</ecore:EPackage>

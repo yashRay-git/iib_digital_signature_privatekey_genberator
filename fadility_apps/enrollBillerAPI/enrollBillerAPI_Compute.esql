@@ -1,0 +1,361 @@
+PATH Fidelity_Bank_GhIPSS_Common;
+DECLARE cbsURL,ghIPSSURL EXTERNAL CHARACTER '';
+
+
+CREATE COMPUTE MODULE enrollBillerAPI_Compute_ProcessRequest
+	
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE CopyMessageHeaders() BEGIN
+		DECLARE I INTEGER 1;
+		DECLARE J INTEGER;
+		SET J = CARDINALITY(InputRoot.*[]);
+		WHILE I < J DO
+			SET OutputRoot.*[I] = InputRoot.*[I];
+			SET I = I + 1;
+		END WHILE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		CREATE FIELD Environment.values;
+		DECLARE envValRef REFERENCE TO Environment.values;
+		SET envValRef.application_name = ApplicationLabel;
+		SET envValRef.msgId = InputRoot.JSON.Data.billerId;
+		SET envValRef.ccsidRef = InputRoot.Properties.CodedCharSetId;
+		SET envValRef.encodeRef = InputRoot.Properties.Encoding;
+				
+		--Logging code Start		
+		SET envValRef.logData = getCastedPayLoad(InputRoot.JSON,envValRef);
+		CALL prepareGhIPSSLogger('ChannelRequest',envValRef,OutputRoot);
+		--Logging code End
+		
+		CREATE LASTCHILD OF Environment.Request NAME 'values';
+		CREATE LASTCHILD OF Environment.Request.values NAME 'individual';
+		DECLARE envRef REFERENCE TO Environment.Request.values.*[>];
+		
+		--framing Core banking request
+		SET OutputRoot.JSON.Data.operation = 'limiteddetail';
+		SET OutputRoot.JSON.Data.accountNo = InputRoot.JSON.Data.accountNumber;
+		
+		SET envRef.billerId = InputRoot.JSON.Data.billerId;
+		SET envRef.requestSource = InputRoot.JSON.Data.requestSource;
+		SET Environment.Request.values.requestFlag = 'CBSCall_Ind';
+		
+		--Logging code Start
+		SET envValRef.logData = getCastedPayLoad(OutputRoot.JSON,envValRef);
+		CALL prepareGhIPSSLogger('CBSRequest',envValRef,OutputRoot);
+		--Logging code End
+		
+		SET OutputRoot.HTTPRequestHeader."X-Original-HTTP-URL" = cbsURL;
+		PROPAGATE TO TERMINAL 'out1';
+		CALL setRequestForGhIPSSCall();
+		CALL rtpCall();
+		SET OutputRoot.JSON.Data.errorCode = envRef.errorCode;
+		SET OutputRoot.JSON.Data.errorDescription = envRef.errorDescription;
+		
+		--Logging code Start
+			SET envValRef.logData = getCastedPayLoad(OutputRoot.JSON,envValRef);
+			CALL prepareGhIPSSLogger('ChannelResponse',envValRef,OutputRoot);
+		--Logging code End
+		
+	END;
+	CREATE PROCEDURE setRequestForGhIPSSCall ( )
+	BEGIN
+		DECLARE envValRef REFERENCE TO Environment.values;
+		DECLARE envRef REFERENCE TO Environment.Request.values;
+		DECLARE requestType ROW;
+		SET requestType.fieldName = FIELDNAME(envRef.*[>]);
+		IF CONTAINS(requestType.fieldName,'individual') THEN
+			SET OutputRoot.JSON.Data.institutionId = '300323';
+			SET OutputRoot.JSON.Data.billerId = envRef.individual.billerId;
+			SET OutputRoot.JSON.Data.name = envRef.individual.name;
+			SET OutputRoot.JSON.Data.branchCode = envRef.individual.branchCode;
+			SET OutputRoot.JSON.Data.requestSource = envRef.individual.requestSource;
+			SET OutputRoot.JSON.Data.callBackUrl = 'https://callBackUrl.com';
+			SET OutputRoot.JSON.Data.requestTimestamp = CURRENT_TIMESTAMP;
+			SET Environment.Request.values.requestFlag = 'GhIPSSCall_Ind';
+		END IF;
+
+		DECLARE jsonReq CHARACTER CAST(ASBITSTREAM(OutputRoot.JSON.Data CCSID InputRoot.Properties.CodedCharSetId)AS CHARACTER CCSID InputRoot.Properties.CodedCharSetId);
+		CALL signature (jsonReq) INTO OutputRoot.JSON.Data.requestSignature;
+		
+		--Logging code Start
+		SET envValRef.logData = getCastedPayLoad(OutputRoot.JSON,envValRef);
+		CALL prepareGhIPSSLogger('GhiPSSRequest',envValRef,OutputRoot);
+		SET OutputRoot.XMLNSC = NULL;
+		--Logging code End
+		
+		SET OutputRoot.HTTPRequestHeader."X-Original-HTTP-URL" = ghIPSSURL;
+		PROPAGATE TO TERMINAL 'out1';
+	END;
+
+	CREATE PROCEDURE rtpCall ( )
+	BEGIN
+		DECLARE envRef REFERENCE TO Environment.Request.values;
+--		DECLARE envValRef REFERENCE TO Environment.values;
+		IF CONTAINS(envRef.requestFlag,'Ind') THEN
+			IF envRef.individual.errorCode = '200' THEN
+				CALL biller('INSERT',envRef.individual);	
+--				INSERT INTO Database.BILLERS (institutionId,billerId,accountNumber,name,branchcode,callbackurl,requestsource,requesttimestamp)
+--					VALUES ('300324', envRef.individual.billerId, envRef.individual.accountNumber,envRef.individual.name, envRef.individual.branchCode, 'https://callBackUrl.com',envRef.individual.requestSource,CURRENT_TIMESTAMP);
+				SET OutputRoot.JSON.Data.errorCode = envRef.individual.errorCode;
+				SET OutputRoot.JSON.Data.errorDescription = envRef.individual.errorDescription;
+			END IF;
+		END IF;
+	END;
+END MODULE;
+
+CREATE COMPUTE MODULE enrollBillerAPI_Compute_ProcessResponse
+	DECLARE payloadData ROW;
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		RETURN FALSE;
+	END;
+
+	CREATE PROCEDURE CopyMessageHeaders() BEGIN
+		DECLARE I INTEGER 1;
+		DECLARE J INTEGER;
+		SET J = CARDINALITY(InputRoot.*[]);
+		WHILE I < J DO
+			SET OutputRoot.*[I] = InputRoot.*[I];
+			SET I = I + 1;
+		END WHILE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		DECLARE envValRef REFERENCE TO Environment.values;
+		DECLARE envRef REFERENCE TO Environment.Request.values;
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data;
+		IF CONTAINS(envRef.requestFlag,'CBSCall') THEN
+			
+			--Logging code Start
+			SET envValRef.logData = getCastedPayLoad(InputRoot.JSON,envValRef);
+			CALL prepareGhIPSSLogger('CBSResponse',envValRef,OutputRoot);
+			--Logging code End
+			
+			IF envRef.requestFlag = 'CBSCall_Ind' THEN
+				SET envRef.individual.name = inRef.customerName1;
+				SET envRef.individual.accountNumber = inRef.custAccNo;
+				SET envRef.individual.branchCode = inRef.branchCode;
+			END IF;
+
+		ELSEIF CONTAINS(envRef.requestFlag,'GhIPSSCall') THEN
+			
+			--Logging code Start
+			SET envValRef.logData = getCastedPayLoad(InputRoot.JSON,envValRef);
+			CALL prepareGhIPSSLogger('GhIPSSResponse',envValRef,OutputRoot);
+			--Logging code End
+			
+			IF envRef.requestFlag = 'GhIPSSCall_Ind' THEN
+				SET envRef.individual.errorCode = inRef.errorCode;
+				SET envRef.individual.errorDescription = inRef.errorDescription;
+			END IF;
+
+		END IF;
+	END;
+END MODULE;
+
+----------------------------------------------------
+------------Bulk Request Module---------------------
+----------------------------------------------------
+CREATE COMPUTE MODULE enrollBillerAPI_Bulk_Compute_ProcessRequest
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		call setChannelResponse();
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE CopyMessageHeaders() BEGIN
+		DECLARE I INTEGER 1;
+		DECLARE J INTEGER;
+		SET J = CARDINALITY(InputRoot.*[]);
+		WHILE I < J DO
+			SET OutputRoot.*[I] = InputRoot.*[I];
+			SET I = I + 1;
+		END WHILE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data;
+		CREATE FIELD Environment.values;
+		DECLARE envValRef REFERENCE TO Environment.values;
+		SET envValRef.application_name = ApplicationLabel;
+		SET envValRef.msgId = inRef.file.data.Item.billerId;
+		--following line is to refer as a msg id in a channel response logging start
+		SET envValRef.chnlReqMsgId = inRef.file.data.Item.billerId;
+		--following line is to refer as a msg id in a channel response logging end
+		SET envValRef.ccsidRef = InputRoot.Properties.CodedCharSetId;
+		SET envValRef.encodeRef = InputRoot.Properties.Encoding;
+		
+		--Logging code Start		
+		SET envValRef.logData = getCastedPayLoad(InputRoot.JSON,envValRef);
+		CALL prepareGhIPSSLogger('ChannelRequest',envValRef,OutputRoot);
+		--Logging code End
+		
+		
+		CREATE LASTCHILD OF Environment.Request NAME 'values';
+		CREATE LASTCHILD OF Environment.Request.values NAME 'bulk';
+		DECLARE envRef REFERENCE TO Environment.Request.values.*[>];
+		
+		
+		
+		DECLARE dataRef REFERENCE TO inRef.file.data.Item;
+			WHILE LASTMOVE(dataRef) DO
+				SET envRef.{dataRef.billerId}.billerId = dataRef.billerId;
+				SET envRef.{dataRef.billerId}.requestSource = dataRef.requestSource;
+				
+				SET OutputRoot.JSON.Data.operation = 'limiteddetail';
+				SET OutputRoot.JSON.Data.accountNo = dataRef.accountNumber;
+				
+				SET Environment.Request.values.requestFlag = 'CBSCall_Blk';
+				
+				--Logging code Start
+				SET envValRef.msgId = dataRef.billerId;
+				SET envValRef.logData = getCastedPayLoad(OutputRoot.JSON,envValRef);
+				CALL prepareGhIPSSLogger('CBSRequest',envValRef,OutputRoot);
+				--Logging code End
+				
+				SET OutputRoot.HTTPRequestHeader."X-Original-HTTP-URL" = cbsURL;
+				SET Environment.requestIndex = dataRef.billerId;
+				PROPAGATE TO TERMINAL 'out1';
+				CALL setRequestForGhIPSSCall();
+				CALL rtpCall();
+				MOVE dataRef NEXTSIBLING;
+			END WHILE;
+		
+	END;
+	CREATE PROCEDURE setRequestForGhIPSSCall ( )
+	BEGIN
+		DECLARE envRef REFERENCE TO Environment.Request.values;
+		DECLARE envValRef REFERENCE TO Environment.values;
+		DECLARE requestType ROW;
+		SET requestType.fieldName = FIELDNAME(envRef.*[>]);
+		IF CONTAINS(requestType.fieldName,'bulk') THEN
+			SET OutputRoot.JSON.Data.institutionId = '300324';
+			SET OutputRoot.JSON.Data.billerId = envRef.bulk.{Environment.requestIndex}.billerId;
+			SET OutputRoot.JSON.Data.name = envRef.bulk.{Environment.requestIndex}.name;
+			SET OutputRoot.JSON.Data.branchCode = envRef.bulk.{Environment.requestIndex}.branchCode;
+			SET OutputRoot.JSON.Data.requestSource = envRef.bulk.{Environment.requestIndex}.requestSource;
+			SET OutputRoot.JSON.Data.callBackUrl = 'https://callBackUrl.com';
+			SET OutputRoot.JSON.Data.requestTimestamp = CURRENT_TIMESTAMP;
+			SET Environment.Request.values.requestFlag = 'GhIPSSCall_Blk';
+		END IF;
+				
+		DECLARE jsonReq CHARACTER CAST(ASBITSTREAM(OutputRoot.JSON.Data CCSID InputRoot.Properties.CodedCharSetId)AS CHARACTER CCSID InputRoot.Properties.CodedCharSetId);
+		CALL signature (jsonReq) INTO OutputRoot.JSON.Data.requestSignature;
+		
+		--Logging code Start
+		SET envValRef.logData = getCastedPayLoad(OutputRoot.JSON,envValRef);
+		CALL prepareGhIPSSLogger('GhiPSSRequest',envValRef,OutputRoot);
+		SET OutputRoot.XMLNSC = NULL;
+		--Logging code End
+		
+		SET OutputRoot.HTTPRequestHeader."X-Original-HTTP-URL" = ghIPSSURL;
+		PROPAGATE TO TERMINAL 'out1';
+	END;
+	
+	CREATE PROCEDURE rtpCall ( )
+	BEGIN
+		DECLARE envRef REFERENCE TO Environment.Request.values;
+		
+		IF CONTAINS(envRef.requestFlag,'Blk') THEN
+			DECLARE dataRef REFERENCE TO envRef.bulk;
+			IF envRef.bulk.{Environment.requestIndex}.errorCode = '200' THEN
+				CALL biller('INSERT',envRef.bulk.{Environment.requestIndex});
+--				INSERT INTO Database.BILLERS (institutionId,billerId,accountNumber,name,branchcode,callbackurl,requestsource,requesttimestamp) 
+--						VALUES ('300324', envRef.bulk.{Environment.requestIndex}.billerId, envRef.bulk.{Environment.requestIndex}.accountNumber,envRef.bulk.{Environment.requestIndex}.name, envRef.bulk.{Environment.requestIndex}.branchCode, 'https://callBackUrl.com',envRef.bulk.{Environment.requestIndex}.requestSource,CURRENT_TIMESTAMP);	
+			END IF;
+		END IF;
+	END;
+	
+	CREATE PROCEDURE setChannelResponse ( )
+	BEGIN
+--		SET Environment.Request.values.bulk.requestIndex = null;
+		DECLARE envRef REFERENCE TO Environment.Request.values.bulk.*[>];
+		DECLARE envValRef REFERENCE TO Environment.values;
+		CREATE LASTCHILD OF OutputRoot.JSON.Data IDENTITY (JSON.Array)enrollment; 
+
+		DECLARE outItemRef REFERENCE TO OutputRoot.JSON.Data.enrollment;
+		DECLARE i INTEGER 1;
+		
+		WHILE LASTMOVE(envRef) DO
+			SET outItemRef.Item[i].billerId = envRef.billerId;
+			SET outItemRef.Item[i].errorCode = envRef.errorCode;
+			SET outItemRef.Item[i].errorDescription = envRef.errorDescription;
+			SET i = i+1;
+			MOVE envRef NEXTSIBLING;
+		END WHILE;
+		
+		--Logging code Start
+			SET envValRef.msgId = envValRef.chnlReqMsgId;
+			SET envValRef.logData = getCastedPayLoad(OutputRoot.JSON,envValRef);
+			CALL prepareGhIPSSLogger('ChannelResponse',envValRef,OutputRoot);
+		--Logging code End
+	END;
+END MODULE;
+
+CREATE COMPUTE MODULE enrollBillerAPI_Bulk_Compute_ProcessResponse
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		RETURN FALSE;
+	END;
+
+	CREATE PROCEDURE CopyMessageHeaders() BEGIN
+		DECLARE I INTEGER 1;
+		DECLARE J INTEGER;
+		SET J = CARDINALITY(InputRoot.*[]);
+		WHILE I < J DO
+			SET OutputRoot.*[I] = InputRoot.*[I];
+			SET I = I + 1;
+		END WHILE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		
+		DECLARE envValRef REFERENCE TO Environment.values;
+		DECLARE inRef REFERENCE TO InputRoot.JSON.Data;
+		DECLARE envRef REFERENCE TO Environment.Request.values;
+		
+		IF CONTAINS(envRef.requestFlag,'CBSCall') THEN
+			
+			--Logging code Start
+			SET envValRef.logData = getCastedPayLoad(InputRoot.JSON,envValRef);
+			CALL prepareGhIPSSLogger('CBSResponse',envValRef,OutputRoot);
+			--Logging code End
+			
+			IF envRef.requestFlag = 'CBSCall_Blk' THEN
+				SET envRef.bulk.{Environment.requestIndex}.name = inRef.customerName1;
+				SET envRef.bulk.{Environment.requestIndex}.accountNumber = inRef.custAccNo;
+				SET envRef.bulk.{Environment.requestIndex}.branchCode = inRef.branchCode;
+			END IF;
+			
+		ELSEIF CONTAINS(envRef.requestFlag,'GhIPSSCall') THEN
+			
+			--Logging code Start
+			SET envValRef.logData = getCastedPayLoad(InputRoot.JSON,envValRef);
+			CALL prepareGhIPSSLogger('GhIPSSResponse',envValRef,OutputRoot);
+			--Logging code End
+			
+			IF envRef.requestFlag = 'GhIPSSCall_Blk' THEN
+				SET envRef.bulk.{Environment.requestIndex}.errorCode = inRef.errorCode;
+				SET envRef.bulk.{Environment.requestIndex}.errorDescription = inRef.errorDescription;
+			END IF;
+			
+		END IF;
+	END;
+END MODULE;
+
+CREATE PROCEDURE signature ( In Request CHARACTER) RETURNS CHARACTER
+LANGUAGE JAVA
+EXTERNAL NAME "digitalSignature.JSONSignature.digitalSign";
